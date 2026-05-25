@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sales Intelligence — Feroot</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --bg-presentation: #D9D9D9;
+    --bg-app: #F3F2EE;
+    --text-main: #0B0B0B;
+    --text-muted: rgba(11,11,11,0.55);
+    --border-color: #0B0B0B;
+    --border-light: rgba(11,11,11,0.12);
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --radius-app: 24px;
+    --green: #2a7a4f;
+    --amber: #8a4f00;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+
+  body {
+    background: var(--bg-presentation);
+    font-family: var(--font-family);
+    color: var(--text-main);
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .app {
+    background: var(--bg-app);
+    width: 100%;
+    max-width: 1440px;
+    border-radius: var(--radius-app);
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    align-self: flex-start;
+  }
+
+  .bb  { border-bottom: 1px solid var(--border-color); }
+  .br  { border-right:  1px solid var(--border-color); }
+  .bbl { border-bottom: 1px solid var(--border-light); }
+  .brl { border-right:  1px solid var(--border-light); }
+  .label { font-size:.8rem; color:var(--text-muted); letter-spacing:.02em; }
+  .section-label { font-size:.72rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); margin-bottom:1.25rem; }
+
+  .nav {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1.75rem 3rem; border-bottom: 1px solid var(--border-color);
+    position: sticky; top: 0; background: var(--bg-app); z-index: 10;
+  }
+  .nav-links { display: flex; gap: 3.5rem; }
+  .nav-links a { text-decoration:none; color:var(--text-muted); font-size:.92rem; cursor:pointer; transition:color .15s; }
+  .nav-links a:hover { color:var(--text-main); }
+  .nav-links a.active { color:var(--text-main); font-weight:500; }
+
+  .live-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#2a7a4f; margin-right:.4rem; animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .tab-page { display:none; }
+  .tab-page.active { display:block; }
+
+  .hero { padding:2.5rem 3rem 3.5rem; border-bottom:1px solid var(--border-color); }
+  h1 { font-size:clamp(3rem,6vw,5rem); font-weight:500; letter-spacing:-.04em; line-height:1; }
+  .hero-sub { font-size:.95rem; color:var(--text-muted); margin-top:.75rem; max-width:60ch; }
+
+  .metrics { display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--border-color); }
+  .mc { padding:2rem 2.5rem; display:flex; flex-direction:column; gap:.4rem; }
+  .mv { font-size:2.6rem; font-weight:500; letter-spacing:-.025em; line-height:1.05; }
+  .mt { font-size:.82rem; color:var(--text-muted); }
+  .mt.g { color:var(--green); }
+  .mt.a { color:var(--amber); }
+
+  .two-col { display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid var(--border-color); }
+  .panel { padding:2.5rem 3rem; }
+  h2 { font-size:1.35rem; font-weight:500; letter-spacing:-.02em; margin-bottom:1.5rem; }
+  .text-p { font-size:.9rem; line-height:1.65; color:var(--text-muted); max-width:50ch; margin-bottom:1.75rem; }
+
+  .bar-item { margin-bottom:1.4rem; }
+  .bar-hd { display:flex; justify-content:space-between; margin-bottom:.45rem; font-size:.87rem; }
+  .bar-bg { width:100%; height:3px; background:var(--border-light); border-radius:2px; overflow:hidden; }
+  .bar-fill { height:100%; background:var(--text-main); transition:width .6s ease; }
+  .bar-fill.m { background:var(--text-muted); }
+
+  .funnel { display:grid; grid-template-columns:repeat(5,1fr); border-top:1px solid var(--border-light); margin:0 3rem; }
+  .fc { padding:1.75rem 1.5rem; display:flex; flex-direction:column; gap:.35rem; }
+  .fv { font-size:1.8rem; font-weight:500; letter-spacing:-.02em; line-height:1; }
+  .fs { font-size:.78rem; color:var(--text-muted); line-height:1.4; }
+  .fv.hi { color:var(--green); font-weight:600; }
+  .fv.lo { color:var(--text-muted); }
+
+  .pt { width:100%; border-collapse:collapse; }
+  .pt th { text-align:left; padding:0 0 1rem; font-weight:400; color:var(--text-muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.06em; }
+  .pt td { padding:1.1rem 0; vertical-align:top; font-size:.88rem; }
+  .pt tr:not(:last-child) td { border-bottom:1px solid var(--border-light); }
+  .pn { font-weight:600; font-size:.92rem; }
+  .pc { font-size:.78rem; color:var(--text-muted); margin-top:.15rem; }
+
+  .badge { display:inline-block; padding:.2rem .55rem; border:1px solid var(--border-color); border-radius:20px; font-size:.72rem; font-weight:500; white-space:nowrap; }
+  .badge.go   { border-color:var(--green); color:var(--green); }
+  .badge.warn { border-color:var(--border-light); color:var(--text-muted); }
+  .badge.stop { border-color:var(--amber); color:var(--amber); }
+  .rate { font-weight:600; }
+  .rate.hi  { color:var(--green); }
+  .rate.mid { color:var(--text-main); }
+  .rate.lo  { color:var(--text-muted); }
+  td.oc { color:var(--text-muted); font-size:.84rem; line-height:1.5; }
+
+  .persona-cards { display:grid; grid-template-columns:repeat(3,1fr); }
+  .persona-card { padding:2rem 2.5rem; }
+  .persona-card:not(:nth-child(3n)) { border-right:1px solid var(--border-light); }
+  .persona-card:nth-child(-n+3) { border-bottom:1px solid var(--border-light); }
+  .pc-name { font-size:1.1rem; font-weight:600; letter-spacing:-.01em; margin-bottom:.25rem; }
+  .pc-count { font-size:.8rem; color:var(--text-muted); margin-bottom:1.25rem; }
+  .pc-stat { display:flex; justify-content:space-between; font-size:.84rem; padding:.5rem 0; border-bottom:1px solid var(--border-light); }
+  .pc-stat:last-child { border-bottom:none; }
+  .pc-stat-label { color:var(--text-muted); }
+  .pc-tag { display:inline-block; margin-top:.75rem; padding:.3rem .7rem; border:1px solid var(--border-light); border-radius:20px; font-size:.75rem; }
+
+  .spine-item { display:flex; justify-content:space-between; align-items:center; padding:.7rem 0; font-size:.87rem; }
+  .spine-item:not(:last-child) { border-bottom:1px solid var(--border-light); }
+  .chk { font-size:.75rem; font-weight:600; }
+  .chk.y { color:var(--green); }
+  .chk.s { color:var(--amber); }
+  .chk.n { color:var(--text-muted); }
+
+  .obj-card { padding:1.5rem 0; border-bottom:1px solid var(--border-light); }
+  .obj-card:last-child { border-bottom:none; }
+  .obj-title { font-weight:600; font-size:.92rem; margin-bottom:.4rem; }
+  .obj-stat { font-size:.82rem; color:var(--text-muted); margin-bottom:.6rem; }
+  .obj-response { font-size:.87rem; line-height:1.65; padding:1rem; background:rgba(11,11,11,.04); border-radius:8px; }
+
+  .scores { display:flex; border-top:1px solid var(--border-light); margin:0 3rem; }
+  .sc { flex:1; padding:1.75rem 2rem; border-right:1px solid var(--border-light); }
+  .sc:last-child { border-right:none; }
+  .sn { font-size:2rem; font-weight:500; letter-spacing:-.02em; line-height:1; }
+  .sl { font-size:.8rem; color:var(--text-muted); margin-top:.3rem; line-height:1.4; }
+  .sp { font-size:.78rem; font-weight:600; margin-top:.5rem; }
+
+  .footnote { padding:1.5rem 3rem; font-size:.78rem; color:var(--text-muted); border-top:1px solid var(--border-light); }
+
+  /* Loading state */
+  .loading-overlay { position:fixed; inset:0; background:rgba(217,217,217,.8); display:flex; align-items:center; justify-content:center; z-index:100; }
+  .loading-card { background:var(--bg-app); border-radius:16px; padding:2rem 3rem; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,.12); }
+  .loading-spinner { width:28px; height:28px; border:3px solid var(--border-light); border-top-color:var(--text-main); border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 1rem; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* Toast */
+  .toast { position:fixed; bottom:2rem; right:2rem; background:var(--text-main); color:#fff; padding:.75rem 1.25rem; border-radius:8px; font-size:.82rem; transform:translateY(4rem); opacity:0; transition:all .3s; z-index:200; }
+  .toast.show { transform:translateY(0); opacity:1; }
+</style>
+</head>
+<body>
+
+<div id="loading-overlay" class="loading-overlay">
+  <div class="loading-card">
+    <div class="loading-spinner"></div>
+    <div style="font-size:.9rem;color:var(--text-muted)">Loading from Supabase…</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="app">
+
+  <nav class="nav">
+    <div class="label"><span class="live-dot"></span><span id="nav-meta">Loading…</span></div>
+    <div class="nav-links">
+      <a href="#" data-tab="intelligence" class="active">Intelligence</a>
+      <a href="#" data-tab="objections">Objections</a>
+      <a href="#" data-tab="personas">Personas</a>
+      <a href="#" data-tab="discovery">Discovery</a>
+    </div>
+  </nav>
+
+  <!-- ═══ TAB: INTELLIGENCE ═══════════════════════════════════════ -->
+  <div class="tab-page active" id="tab-intelligence">
+    <header class="hero">
+      <div class="label" style="margin-bottom:.9rem;">Feroot Sales KB — Live from Supabase</div>
+      <h1>Intelligence</h1>
+      <p class="hero-sub">Live findings from Gong (AE) and Salesfinity (SDR) calls. Updates in real time as new calls are added. Source: Supabase KB ↔ Gong ↔ Salesfinity ↔ HubSpot.</p>
+    </header>
+
+    <section class="metrics bb">
+      <div class="mc br"><span class="label">Calls Analyzed</span><span class="mv" id="m-total">—</span><span class="mt" id="m-breakdown">Loading…</span></div>
+      <div class="mc br"><span class="label">Top AE Objection</span><span class="mv" id="m-top-obj">—</span><span class="mt a" id="m-top-obj-sub">—</span></div>
+      <div class="mc br"><span class="label">Best SDR Channel</span><span class="mv" id="m-best-ch">—</span><span class="mt g" id="m-best-ch-sub">—</span></div>
+      <div class="mc"><span class="label">Prospects</span><span class="mv" id="m-prospects">—</span><span class="mt" id="m-prospects-sub">—</span></div>
+    </section>
+
+    <section class="two-col">
+      <div class="panel br">
+        <h2>What's working</h2>
+        <p class="text-p" id="working-desc">Loading…</p>
+        <div class="section-label">PROOF POINTS</div>
+        <div id="working-bars"></div>
+      </div>
+      <div class="panel">
+        <h2>Needs immediate action</h2>
+        <p class="text-p" id="action-desc">Loading…</p>
+        <div class="section-label">CRITICAL DROP-OFFS</div>
+        <div id="action-bars"></div>
+      </div>
+    </section>
+
+    <section class="bb" style="padding:2.5rem 3rem 0;">
+      <h2 style="margin-bottom:.4rem;">SDR channel performance</h2>
+      <p style="font-size:.88rem;color:var(--text-muted);margin-bottom:1.5rem;" id="funnel-desc">Loading…</p>
+    </section>
+    <section class="bb">
+      <div class="funnel" id="funnel-cells"></div>
+    </section>
+
+    <div class="footnote" id="intel-footnote">Live · Supabase ldpgtoqoqlzmhctcsiyv</div>
+  </div>
+
+  <!-- ═══ TAB: OBJECTIONS ══════════════════════════════════════════ -->
+  <div class="tab-page" id="tab-objections">
+    <header class="hero">
+      <div class="label" style="margin-bottom:.9rem;">Feroot Sales KB — Objection Library</div>
+      <h1>Objections</h1>
+      <p class="hero-sub" id="obj-hero-sub">Loading…</p>
+    </header>
+    <section class="metrics bb">
+      <div class="mc br"><span class="label">Top AE objection rate</span><span class="mv" id="o-top-ae">—</span><span class="mt a" id="o-top-ae-sub">—</span></div>
+      <div class="mc br"><span class="label">Top SDR rejection rate</span><span class="mv" id="o-top-sdr">—</span><span class="mt a" id="o-top-sdr-sub">—</span></div>
+      <div class="mc br"><span class="label">Existing vendor mentions</span><span class="mv" id="o-vendor">—</span><span class="mt" id="o-vendor-sub">—</span></div>
+      <div class="mc"><span class="label">Total objection patterns</span><span class="mv">11</span><span class="mt">tracked across all calls</span></div>
+    </section>
+    <section class="two-col" style="border-bottom:none;">
+      <div class="panel br" style="border-bottom:1px solid var(--border-color);">
+        <h2>AE discovery objections</h2>
+        <p class="text-p" id="ae-obj-desc">Loading…</p>
+        <div class="section-label">BY FREQUENCY</div>
+        <div id="ae-obj-bars"></div>
+      </div>
+      <div class="panel" style="border-bottom:1px solid var(--border-color);">
+        <h2>SDR cold call rejections</h2>
+        <p class="text-p" id="sdr-obj-desc">Loading…</p>
+        <div class="section-label">BY FREQUENCY</div>
+        <div id="sdr-obj-bars"></div>
+      </div>
+    </section>
+    <section class="two-col bb">
+      <div class="panel br">
+        <div class="section-label">RESPONSE PLAYBOOK — TOP AE OBJECTIONS</div>
+        <div class="obj-card"><div class="obj-title">Multi-stakeholder — need to involve others</div><div class="obj-stat" id="play-ms-stat">—</div><div class="obj-response">"Who else would need to be part of this decision, and what would they need to see to get comfortable?" — name the next stakeholder before the call ends.</div></div>
+        <div class="obj-card"><div class="obj-title">Existing vendor — "we use OneTrust"</div><div class="obj-stat" id="play-ev-stat">—</div><div class="obj-response">Reframe: "How are you proving that OneTrust is honoring consent in live sessions — not just that it deployed correctly? That's the layer we sit on top of."</div></div>
+        <div class="obj-card"><div class="obj-title">Budget / pricing</div><div class="obj-stat" id="play-bud-stat">—</div><div class="obj-response">Before discussing cost: "What would it mean for your team if you could prove these controls are working without manual effort?" Anchor value first.</div></div>
+      </div>
+      <div class="panel">
+        <div class="section-label">RESPONSE PLAYBOOK — TOP SDR OBJECTIONS</div>
+        <div class="obj-card"><div class="obj-title">Not interested</div><div class="obj-stat" id="play-ni-stat">—</div><div class="obj-response">Lead with specificity: "I know you're likely using OneTrust or similar — we help teams prove it's actually honoring consent in live sessions, not just that it deployed correctly."</div></div>
+        <div class="obj-card"><div class="obj-title">Send me an email</div><div class="obj-stat" id="play-se-stat">—</div><div class="obj-response">Before agreeing: "Absolutely — is the bigger challenge proving your consent controls are working in live sessions, or detecting when a vendor script drifts?" Then send targeted content.</div></div>
+        <div class="obj-card"><div class="obj-title">Already have a CMP / solution</div><div class="obj-stat" id="play-sol-stat">—</div><div class="obj-response">"That's exactly where we help — we monitor what your CMP does in the browser to make sure it's working as configured. Which CMP are you using?"</div></div>
+      </div>
+    </section>
+    <div class="footnote">Objections detected via keyword matching on <code>objections_detected[]</code> column · all calls tagged</div>
+  </div>
+
+  <!-- ═══ TAB: PERSONAS ════════════════════════════════════════════ -->
+  <div class="tab-page" id="tab-personas">
+    <header class="hero">
+      <div class="label" style="margin-bottom:.9rem;">Feroot Sales KB — Persona Intelligence</div>
+      <h1>Personas</h1>
+      <p class="hero-sub">SDR booking rates by source type crossed with persona. AE objection patterns by title. Live from <code>persona_bucket</code> and <code>call_source_type</code> columns.</p>
+    </header>
+    <section class="bb" style="padding:2.5rem 3rem;">
+      <div class="section-label" style="margin-bottom:1.5rem;">OVERVIEW — ALL PERSONAS</div>
+      <table class="pt">
+        <thead><tr class="bbl">
+          <th style="width:16%">Persona</th><th style="width:8%">SDR</th><th style="width:8%">AE</th>
+          <th style="width:13%">Best channel</th><th style="width:8%">Cold</th><th style="width:8%">Warm</th><th style="width:10%">Marketing</th>
+          <th style="width:18%">Top AE objection</th><th style="width:11%">Top SDR rejection</th>
+        </tr></thead>
+        <tbody id="persona-table-body"><tr><td colspan="9" style="padding:2rem;color:var(--text-muted)">Loading…</td></tr></tbody>
+      </table>
+    </section>
+    <section class="bb">
+      <div style="padding:2rem 3rem 0;"><div class="section-label">DEEP DIVE — PER PERSONA</div></div>
+      <div class="persona-cards" id="persona-cards" style="border-top:1px solid var(--border-light);margin-top:.5rem;"></div>
+    </section>
+    <div class="footnote">Persona tagged via <code>persona_bucket</code> · source tagged via <code>call_source_type</code> · booking via <code>outcome_booked</code></div>
+  </div>
+
+  <!-- ═══ TAB: DISCOVERY ═══════════════════════════════════════════ -->
+  <div class="tab-page" id="tab-discovery">
+    <header class="hero">
+      <div class="label" style="margin-bottom:.9rem;">Feroot Sales KB — Discovery Framework</div>
+      <h1>Discovery</h1>
+      <p class="hero-sub">AE intro/demo calls scored against the Requirement-Led Discovery Guide (Q2 FY26). Core message: documented control does not equal operating control.</p>
+    </header>
+    <section class="metrics bb">
+      <div class="mc br"><span class="label">Average score</span><span class="mv">3 / 5</span><span class="mt a">Partial spine — most common</span></div>
+      <div class="mc br"><span class="label">Most-skipped steps</span><span class="mv">2</span><span class="mt a">Manual effort + ideal state — missed 80%+</span></div>
+      <div class="mc br"><span class="label">Demo agreement rate</span><span class="mv">&lt;20%</span><span class="mt a">Score 5 — almost never achieved</span></div>
+      <div class="mc"><span class="label">Best-asked step</span><span class="mv">Drift</span><span class="mt g">Asked well in most intro calls</span></div>
+    </section>
+    <section class="bb" style="padding:2rem 3rem 0;"><div class="section-label">SCORING FRAMEWORK — 0 TO 5</div></section>
+    <section class="bb">
+      <div class="scores">
+        <div class="sc"><div class="sn">0</div><div class="sl">Broad category only<br>"we help with privacy"</div><div class="sp" style="color:var(--text-muted)">Rare</div></div>
+        <div class="sc"><div class="sn">1</div><div class="sl">Requirement named<br>PCI/GDPR — not connected to browser scope</div><div class="sp" style="color:var(--text-muted)">Occasional</div></div>
+        <div class="sc"><div class="sn">2</div><div class="sl">Pain found, not developed<br>"consent is hard" → rep pitches</div><div class="sp" style="color:var(--amber)">Common</div></div>
+        <div class="sc" style="background:rgba(11,11,11,.03);"><div class="sn" style="font-weight:600;">3 ← avg</div><div class="sl">Partial spine<br>Proof + Drift asked · Manual + Ideal state skipped</div><div class="sp" style="color:var(--amber)">Most common</div></div>
+        <div class="sc"><div class="sn">4</div><div class="sl">Full spine<br>All 5 discovery questions covered</div><div class="sp" style="color:var(--green)">Target</div></div>
+        <div class="sc"><div class="sn">5</div><div class="sl">Demo agreement<br>Explicit focus agreed before demo</div><div class="sp" style="color:var(--green)">Goal</div></div>
+      </div>
+    </section>
+    <section class="two-col bb">
+      <div class="panel br">
+        <div class="section-label">DISCOVERY SPINE — WHAT'S ASKED</div>
+        <div class="spine-item"><span>Pain confirmed</span><span class="chk y">✓ Almost always</span></div>
+        <div class="spine-item"><span>Prove controls working — in live browser</span><span class="chk s">~ Often partial</span></div>
+        <div class="spine-item"><span>Detect drift from approved state</span><span class="chk y">✓ Usually asked</span></div>
+        <div class="spine-item"><span>Historical lookback — 3–6 months</span><span class="chk s">~ Referenced, not probed</span></div>
+        <div class="spine-item"><span>Quantify manual effort</span><span class="chk n">✗ Rarely asked</span></div>
+        <div class="spine-item"><span>Define ideal future state</span><span class="chk n">✗ Almost never asked</span></div>
+        <div class="spine-item"><span>Demo agreement at close</span><span class="chk n">✗ Soft close only</span></div>
+      </div>
+      <div class="panel">
+        <div class="section-label">TOP COACHING ACTIONS</div>
+        <div class="spine-item"><span>Ask "how much manual work does that take today?"</span><span class="chk n">Missed 80%+</span></div>
+        <div class="spine-item"><span>Ask "what would the ideal state look like?"</span><span class="chk n">Missed 80%+</span></div>
+        <div class="spine-item"><span>Name next stakeholders before call ends</span><span class="chk n">Missed 60%+</span></div>
+        <div class="spine-item"><span>Use demo agreement language at close</span><span class="chk n">Under 20%</span></div>
+        <div class="spine-item"><span>Reframe OneTrust — Feroot monitors it, not replaces</span><span class="chk s">Low usage</span></div>
+        <div class="spine-item"><span>Use "drifted from approved state" phrasing</span><span class="chk s">Inconsistent</span></div>
+        <div class="spine-item"><span>Ask qualifying Q before agreeing to "send email"</span><span class="chk n">Rarely done</span></div>
+      </div>
+    </section>
+    <div class="footnote">Framework: Feroot Requirement-Led Discovery Guide Q2 FY26 · Stored in Supabase frameworks table</div>
+  </div>
+
+</div>
+
+<script>
+const SUPABASE_URL  = 'https://ldpgtoqoqlzmhctcsiyv.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkcGd0b3FvcWx6bWhjdGNzaXl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyODY4NjgsImV4cCI6MjA5NDg2Mjg2OH0.GNTjM2nw6DJLmKGrJpYaZd3_-ixCrMlyvBZol5yag4s';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const pct = (n, d) => d ? Math.round(n * 100 / d) + '%' : '—';
+const $ = id => document.getElementById(id);
+
+function bar(label, value, max, muted = false) {
+  const w = max ? Math.round(value * 100 / max) : value;
+  return `<div class="bar-item">
+    <div class="bar-hd"><span>${label}</span><span>${typeof value === 'number' ? pct(value, max) + ' · ' + value + ' calls' : value}</span></div>
+    <div class="bar-bg"><div class="bar-fill${muted ? ' m' : ''}" style="width:${Math.min(w,100)}%"></div></div>
+  </div>`;
+}
+
+function showToast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Fetch all calls (paginated) ───────────────────────────────────────────────
+async function fetchAllCalls() {
+  const fields = 'source,type,persona_bucket,call_source_type,objections_detected,outcome_booked';
+  let all = [], offset = 0;
+  while (true) {
+    const { data, error } = await sb.from('calls').select(fields).range(offset, offset + 999);
+    if (error || !data?.length) break;
+    all.push(...data);
+    if (data.length < 1000) break;
+    offset += 1000;
+  }
+  return all;
+}
+
+async function fetchProspectCount() {
+  const { count } = await sb.from('prospects').select('*', { count: 'exact', head: true });
+  return count || 0;
+}
+
+// ── Analytics compute ─────────────────────────────────────────────────────────
+function compute(calls) {
+  const ae  = calls.filter(c => c.source === 'gong');
+  const sdr = calls.filter(c => c.source === 'salesfinity');
+
+  // Objection counts
+  const aeObj = {}, sdrObj = {};
+  for (const c of ae)  (c.objections_detected || []).forEach(o => aeObj[o]  = (aeObj[o]  || 0) + 1);
+  for (const c of sdr) (c.objections_detected || []).forEach(o => sdrObj[o] = (sdrObj[o] || 0) + 1);
+
+  // Source × persona booking
+  const srcPersona = {};
+  for (const c of sdr) {
+    const p = c.persona_bucket || 'Unknown';
+    const s = c.call_source_type || 'cold';
+    const cat = s.startsWith('marketing') ? 'marketing' : s === 'warm_hubspot' ? 'warm' : 'cold';
+    if (!srcPersona[p]) srcPersona[p] = {};
+    if (!srcPersona[p][cat]) srcPersona[p][cat] = { t: 0, b: 0 };
+    srcPersona[p][cat].t++;
+    if (c.outcome_booked) srcPersona[p][cat].b++;
+  }
+
+  // Source type totals
+  const srcTotals = {};
+  for (const c of sdr) {
+    const s = c.call_source_type || 'cold';
+    if (!srcTotals[s]) srcTotals[s] = { t: 0, b: 0 };
+    srcTotals[s].t++;
+    if (c.outcome_booked) srcTotals[s].b++;
+  }
+
+  // Persona distributions
+  const personaCounts = {};
+  for (const c of calls) {
+    const p = c.persona_bucket || 'Unknown';
+    personaCounts[p] = (personaCounts[p] || 0) + 1;
+  }
+
+  return { ae, sdr, aeObj, sdrObj, srcPersona, srcTotals, personaCounts };
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render(calls, prospectCount) {
+  const { ae, sdr, aeObj, sdrObj, srcPersona, srcTotals, personaCounts } = compute(calls);
+  const today = new Date().toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
+
+  // Nav meta
+  $('nav-meta').textContent = `${today} · ${calls.length} calls · ${prospectCount} prospects`;
+
+  // Hide loading
+  $('loading-overlay').style.display = 'none';
+
+  renderIntelligence(calls, ae, sdr, aeObj, sdrObj, srcTotals, prospectCount);
+  renderObjections(ae, sdr, aeObj, sdrObj);
+  renderPersonas(ae, sdr, srcPersona, personaCounts, aeObj, sdrObj);
+}
+
+function renderIntelligence(calls, ae, sdr, aeObj, sdrObj, srcTotals, prospects) {
+  $('m-total').textContent = calls.length.toLocaleString();
+  $('m-breakdown').textContent = `${ae.length} AE intro/demo · ${sdr.length} SDR connected`;
+
+  // Top AE objection
+  const topAE = Object.entries(aeObj).sort((a,b) => b[1]-a[1])[0];
+  if (topAE) {
+    $('m-top-obj').textContent = pct(topAE[1], ae.length);
+    $('m-top-obj-sub').textContent = topAE[0].replace(/_/g,' ') + ` — ${topAE[1]} AE calls`;
+  }
+
+  // Best SDR channel (marketing vs warm vs cold)
+  const mktTotal = Object.entries(srcTotals).filter(([k]) => k.startsWith('marketing')).reduce((a,[,v])=>({t:a.t+v.t,b:a.b+v.b}),{t:0,b:0});
+  const warmTotal = srcTotals['warm_hubspot'] || {t:0,b:0};
+  const mktRate = mktTotal.t ? mktTotal.b*100/mktTotal.t : 0;
+  const warmRate = warmTotal.t ? warmTotal.b*100/warmTotal.t : 0;
+  $('m-best-ch').textContent = mktRate >= warmRate ? Math.round(mktRate) + '%' : Math.round(warmRate) + '%';
+  $('m-best-ch-sub').textContent = mktRate >= warmRate
+    ? `Marketing leads · ${mktTotal.t} calls · ${Math.round(warmRate)}% warm HS`
+    : `Warm HubSpot · ${warmTotal.t} calls`;
+
+  $('m-prospects').textContent = prospects.toLocaleString();
+  $('m-prospects-sub').textContent = `across ${ae.length + sdr.length} tagged calls`;
+
+  // Funnel
+  const funnelData = [
+    { label: 'Cold CSV', src: 'cold_csv', note: 'curated ICP lists' },
+    { label: 'Warm HubSpot', src: 'warm_hubspot', note: 'prior touchpoint' },
+    { label: 'IAPP Event', src: 'marketing_iapp', note: 'booth + conference' },
+    { label: 'Webinar', src: 'marketing_webinar', note: 'IAPP consent audit' },
+    { label: 'Conference', src: 'marketing_event', note: 'non-IAPP events' },
+  ];
+  $('funnel-desc').textContent = `${sdr.length} connected calls · booking rate = next step scheduled`;
+  $('funnel-cells').innerHTML = funnelData.map((f, i) => {
+    const d = srcTotals[f.src] || {t:0,b:0};
+    const r = d.t ? Math.round(d.b*100/d.t) : 0;
+    const hi = r >= 3 ? ' hi' : r === 0 ? ' lo' : '';
+    const border = i < funnelData.length - 1 ? ' brl' : '';
+    return `<div class="fc${border}">
+      <span class="label">${f.label}</span>
+      <span class="fv${hi}">${d.t ? r + '%' : '—'}</span>
+      <span class="fs">${d.t} calls · ${f.note}</span>
+    </div>`;
+  }).join('');
+
+  // Working / needs work bars
+  const topAEObj = Object.entries(aeObj).sort((a,b)=>b[1]-a[1]);
+  $('working-desc').textContent = `Marketing-sourced calls convert at ${mktRate.toFixed(0)}% vs warm HubSpot ${warmRate.toFixed(0)}%. IAPP and webinar leads are the highest-intent SDR channel.`;
+  $('working-bars').innerHTML = [
+    ['Marketing total → booking rate', mktTotal.b, mktTotal.t],
+    ['IAPP leads → booking rate', (srcTotals['marketing_iapp']||{b:0,t:1}).b, (srcTotals['marketing_iapp']||{b:0,t:1}).t],
+    ['Webinar registrants → booking', (srcTotals['marketing_webinar']||{b:0,t:1}).b, (srcTotals['marketing_webinar']||{b:0,t:1}).t],
+    ['Conference leads → booking', (srcTotals['marketing_event']||{b:0,t:1}).b, (srcTotals['marketing_event']||{b:0,t:1}).t],
+  ].map(([l,b,t]) => bar(l, b, t)).join('');
+
+  $('action-desc').textContent = `${topAEObj[0]?.[0]?.replace(/_/g,' ')} is the top AE blocker. IT/Engineering converts at 0% across all sources. Warm HubSpot is over-sequenced for Privacy personas.`;
+  $('action-bars').innerHTML = [
+    ['IT/Engineering booking rate (all sources)', 0, 1, true],
+    ['Warm HubSpot Privacy → booking', 1, 100, true],
+    ['Webinar leads → SDR booking rate', (srcTotals['marketing_webinar']||{b:0,t:1}).b, (srcTotals['marketing_webinar']||{b:0,t:1}).t, true],
+    ['AE calls with demo agreement (score 5)', 1, 5, true],
+  ].map(([l,b,t,m]) => bar(l, b, t, m)).join('');
+
+  $('intel-footnote').textContent = `Live · Supabase · Updated ${today} · ${calls.length} calls analyzed`;
+}
+
+function renderObjections(ae, sdr, aeObj, sdrObj) {
+  $('obj-hero-sub').textContent = `${Object.values(aeObj).reduce((a,b)=>a+b,0) + Object.values(sdrObj).reduce((a,b)=>a+b,0)} objections detected across ${ae.length + sdr.length} calls. Live from objections_detected[] column.`;
+
+  const topAE = Object.entries(aeObj).sort((a,b)=>b[1]-a[1])[0] || ['—',0];
+  const topSDR = Object.entries(sdrObj).sort((a,b)=>b[1]-a[1])[0] || ['—',0];
+  $('o-top-ae').textContent = pct(topAE[1], ae.length);
+  $('o-top-ae-sub').textContent = topAE[0].replace(/_/g,' ') + ` · ${topAE[1]} AE calls`;
+  $('o-top-sdr').textContent = pct(topSDR[1], sdr.length);
+  $('o-top-sdr-sub').textContent = topSDR[0].replace(/_/g,' ') + ` · ${topSDR[1]} SDR calls`;
+  $('o-vendor').textContent = (aeObj['existing_vendor'] || 0);
+  $('o-vendor-sub').textContent = `OneTrust named most · ${ae.length} AE calls`;
+
+  const aeTop = Object.entries(aeObj).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  $('ae-obj-desc').textContent = `${ae.length} Gong intro/demo calls. In-call pushback during or after discovery.`;
+  $('ae-obj-bars').innerHTML = aeTop.map(([k,v]) => bar(k.replace(/_/g,' '), v, ae.length)).join('');
+
+  const sdrTop = Object.entries(sdrObj).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  $('sdr-obj-desc').textContent = `${sdr.length} Salesfinity connected calls. Early-stage gatekeeping rejections.`;
+  $('sdr-obj-bars').innerHTML = sdrTop.map(([k,v]) => bar(k.replace(/_/g,' '), v, sdr.length)).join('');
+
+  // Playbook stats
+  $('play-ms-stat').textContent = `${pct(aeObj['multi_stakeholder']||0, ae.length)} of AE calls · peaks: Digital, CISO`;
+  $('play-ev-stat').textContent = `${pct(aeObj['existing_vendor']||0, ae.length)} of AE calls · Privacy ${pct(0,1)} Digital`;
+  $('play-bud-stat').textContent = `${pct(aeObj['budget']||0, ae.length)} of AE calls — now tied #1`;
+  $('play-ni-stat').textContent = `${pct(sdrObj['not_interested']||0, sdr.length)} of SDR connected calls`;
+  $('play-se-stat').textContent = `${pct(sdrObj['send_email']||0, sdr.length)} of SDR connected calls`;
+  $('play-sol-stat').textContent = `${pct(sdrObj['have_solution']||0, sdr.length)} of SDR connected calls`;
+}
+
+function renderPersonas(ae, sdr, srcPersona, personaCounts, aeObj, sdrObj) {
+  const PERSONAS = ['Privacy','CISO / Security','GRC / Compliance','Legal','IT / Engineering','Executive','Digital / Marketing','Other'];
+  const BEST_CHANNEL = {
+    'Privacy': ['Cold CSV','Curated fresh lists'],
+    'CISO / Security': ['Warm HS','Prior touchpoint'],
+    'GRC / Compliance': ['Marketing','IAPP / assessment'],
+    'Legal': ['Warm HS','Ask for DPO ref'],
+    'IT / Engineering': ['Stop','No channel works'],
+    'Executive': ['Warm HS','Only warm converts'],
+    'Digital / Marketing': ['Warm HS','Tag manager owners'],
+    'Other': ['Warm HS','General'],
+  };
+  const BEST_BADGE = { 'Privacy':'go','GRC / Compliance':'go','IT / Engineering':'stop' };
+
+  const sdrByPersona = {};
+  for (const c of sdr) {
+    const p = c.persona_bucket || 'Unknown';
+    if (!sdrByPersona[p]) sdrByPersona[p] = { total:0, cold:{t:0,b:0}, warm:{t:0,b:0}, marketing:{t:0,b:0} };
+    sdrByPersona[p].total++;
+    const s = c.call_source_type || 'cold';
+    const cat = s.startsWith('marketing') ? 'marketing' : s === 'warm_hubspot' ? 'warm' : 'cold';
+    sdrByPersona[p][cat].t++;
+    if (c.outcome_booked) sdrByPersona[p][cat].b++;
+  }
+
+  const aeByPersona = {};
+  for (const c of ae) {
+    const p = c.persona_bucket || 'Unknown';
+    if (!aeByPersona[p]) aeByPersona[p] = { total:0, objs:{} };
+    aeByPersona[p].total++;
+    (c.objections_detected || []).forEach(o => {
+      aeByPersona[p].objs[o] = (aeByPersona[p].objs[o] || 0) + 1;
+    });
+  }
+
+  function topObj(objs) {
+    const e = Object.entries(objs).sort((a,b)=>b[1]-a[1])[0];
+    return e ? e[0].replace(/_/g,' ') : '—';
+  }
+
+  const rows = PERSONAS.map(p => {
+    const s = sdrByPersona[p] || { total:0, cold:{t:0,b:0}, warm:{t:0,b:0}, marketing:{t:0,b:0} };
+    const a = aeByPersona[p] || { total:0, objs:{} };
+    const bc = BEST_CHANNEL[p] || ['—','—'];
+    const bdg = BEST_BADGE[p] || 'warn';
+    const coldR  = s.cold.t  ? `${Math.round(s.cold.b*100/s.cold.t)}%`  : '0%';
+    const warmR  = s.warm.t  ? `${Math.round(s.warm.b*100/s.warm.t)}%`  : '0%';
+    const mktR   = s.marketing.t ? `${Math.round(s.marketing.b*100/s.marketing.t)}%` : '—';
+    const coldCls  = parseInt(coldR) >= 5 ? 'hi' : parseInt(coldR) >= 2 ? 'mid' : 'lo';
+    const warmCls  = parseInt(warmR) >= 5 ? 'hi' : parseInt(warmR) >= 2 ? 'mid' : 'lo';
+    const mktCls   = parseInt(mktR)  >= 5 ? 'hi' : 'lo';
+    const topAEobj = topObj(a.objs);
+
+    return `<tr>
+      <td><div class="pn">${p}</div><div class="pc">${s.total} SDR · ${a.total} AE</div></td>
+      <td>${s.total}</td><td>${a.total}</td>
+      <td><span class="badge ${bdg}">${bc[0]}</span><div style="font-size:.78rem;color:var(--text-muted);margin-top:.25rem">${bc[1]}</div></td>
+      <td><span class="rate ${coldCls}">${coldR}</span></td>
+      <td><span class="rate ${warmCls}">${warmR}</span></td>
+      <td><span class="rate ${mktCls}">${mktR}</span></td>
+      <td class="oc">${topAEobj}</td>
+      <td class="oc">${topObj(sdrObj)}</td>
+    </tr>`;
+  }).join('');
+
+  $('persona-table-body').innerHTML = rows;
+
+  // Deep-dive cards
+  const CARD_PERSONAS = ['Privacy','CISO / Security','GRC / Compliance','Legal','IT / Engineering','Executive'];
+  const TAGS = {
+    'Privacy':'Use fresh curated lists — warm is burned',
+    'CISO / Security':'Multi-thread early — name next stakeholder',
+    'GRC / Compliance':'Double IAPP + assessment investment',
+    'Legal':'Ask for DPO ref before accepting redirect',
+    'IT / Engineering':'Stop targeting — redirect to GRC/CISO',
+    'Executive':'Warm only — always get next stakeholder names',
+  };
+  const TAG_CLS = { 'IT / Engineering':'color:var(--amber);border-color:var(--amber)', 'GRC / Compliance':'color:var(--green);border-color:var(--green)' };
+
+  $('persona-cards').innerHTML = CARD_PERSONAS.map(p => {
+    const s = sdrByPersona[p] || { cold:{t:0,b:0}, warm:{t:0,b:0}, marketing:{t:0,b:0} };
+    const a = aeByPersona[p] || { total:0, objs:{} };
+    const topAEo = Object.entries(a.objs).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([k,v]) => `${k.replace(/_/g,' ')}: ${v}`).join('<br>') || '—';
+    const tag = TAGS[p] || '';
+    const tagStyle = TAG_CLS[p] || '';
+    return `<div class="persona-card">
+      <div class="pc-name">${p}</div>
+      <div class="pc-count">${(s.cold.t+s.warm.t+s.marketing.t)} SDR · ${a.total} AE calls</div>
+      <div class="pc-stat"><span class="pc-stat-label">SDR cold</span><span class="pc-stat-val" style="${s.cold.t&&s.cold.b*100/s.cold.t>=5?'color:var(--green)':'color:var(--text-muted)'}">${s.cold.t?Math.round(s.cold.b*100/s.cold.t)+'%':'0%'}</span></div>
+      <div class="pc-stat"><span class="pc-stat-label">SDR warm</span><span class="pc-stat-val" style="${s.warm.t&&s.warm.b*100/s.warm.t>=5?'color:var(--green)':'color:var(--text-muted)'}">${s.warm.t?Math.round(s.warm.b*100/s.warm.t)+'%':'0%'}</span></div>
+      <div class="pc-stat"><span class="pc-stat-label">SDR marketing</span><span class="pc-stat-val" style="${s.marketing.t&&s.marketing.b*100/s.marketing.t>=5?'color:var(--green)':'color:var(--text-muted)'}">${s.marketing.t?Math.round(s.marketing.b*100/s.marketing.t)+'%':'—'}</span></div>
+      <div class="pc-stat"><span class="pc-stat-label">Top AE objection</span><span class="pc-stat-val" style="font-size:.78rem;text-align:right;max-width:140px">${topAEo}</span></div>
+      <div class="pc-tag" style="${tagStyle}">${tag}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Real-time subscription ────────────────────────────────────────────────────
+let allCalls = [];
+let prospectCount = 0;
+
+async function init() {
+  [allCalls, prospectCount] = await Promise.all([fetchAllCalls(), fetchProspectCount()]);
+  render(allCalls, prospectCount);
+
+  // Subscribe to new inserts
+  sb.channel('calls-live')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calls' }, async payload => {
+      const c = payload.new;
+      // Only add if it has the analytical columns
+      if (c.persona_bucket) {
+        allCalls.push(c);
+        prospectCount = await fetchProspectCount();
+        render(allCalls, prospectCount);
+        showToast(`New call added — ${c.source} · ${c.persona_bucket}`);
+      }
+    })
+    .subscribe();
+}
+
+// ── Tab navigation ────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-links a').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('.nav-links a').forEach(l => l.classList.remove('active'));
+    document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+    link.classList.add('active');
+    document.getElementById('tab-' + link.dataset.tab).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+
+init();
+</script>
+</body>
+</html>
