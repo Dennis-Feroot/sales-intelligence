@@ -427,20 +427,22 @@ function compute(calls) {
   return { ae, sdr, aeObj, sdrObj, srcPersona, srcTotals, personaCounts };
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
+// ── Render — deferred per tab to avoid blocking ───────────────────────────────
 function render(calls, prospectCount) {
-  const { ae, sdr, aeObj, sdrObj, srcPersona, srcTotals, personaCounts } = compute(calls);
+  const data = compute(calls);
   const today = new Date().toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
 
-  // Nav meta
-  $('nav-meta').textContent = `${today} · ${calls.length} calls · ${prospectCount} prospects`;
-
-  // Hide loading
+  $('nav-meta').textContent = `${today} · ${calls.length.toLocaleString()} calls · ${prospectCount.toLocaleString()} prospects`;
   $('loading-overlay').style.display = 'none';
 
-  renderIntelligence(calls, ae, sdr, aeObj, sdrObj, srcTotals, prospectCount);
-  renderObjections(ae, sdr, aeObj, sdrObj);
-  renderPersonas(ae, sdr, srcPersona, personaCounts, aeObj, sdrObj);
+  // Render each tab deferred so the browser stays responsive
+  try { renderIntelligence(calls, data.ae, data.sdr, data.aeObj, data.sdrObj, data.srcTotals, prospectCount); } catch(e) { console.error('Intelligence render error:', e); }
+  setTimeout(() => {
+    try { renderObjections(data.ae, data.sdr, data.aeObj, data.sdrObj); } catch(e) { console.error('Objections render error:', e); }
+  }, 0);
+  setTimeout(() => {
+    try { renderPersonas(data.ae, data.sdr, data.srcPersona, data.personaCounts, data.aeObj, data.sdrObj); } catch(e) { console.error('Personas render error:', e); }
+  }, 50);
 }
 
 function renderIntelligence(calls, ae, sdr, aeObj, sdrObj, srcTotals, prospects) {
@@ -555,12 +557,15 @@ function renderPersonas(ae, sdr, srcPersona, personaCounts, aeObj, sdrObj) {
   const sdrByPersona = {};
   for (const c of sdr) {
     const p = c.persona_bucket || 'Unknown';
-    if (!sdrByPersona[p]) sdrByPersona[p] = { total:0, cold:{t:0,b:0}, warm:{t:0,b:0}, marketing:{t:0,b:0} };
+    if (!sdrByPersona[p]) sdrByPersona[p] = { total:0, cold:{t:0,b:0}, warm:{t:0,b:0}, marketing:{t:0,b:0}, objs:{} };
     sdrByPersona[p].total++;
     const s = c.call_source_type || 'cold';
     const cat = s.startsWith('marketing') ? 'marketing' : s === 'warm_hubspot' ? 'warm' : 'cold';
     sdrByPersona[p][cat].t++;
     if (c.outcome_booked) sdrByPersona[p][cat].b++;
+    (c.objections_detected || []).forEach(o => {
+      sdrByPersona[p].objs[o] = (sdrByPersona[p].objs[o] || 0) + 1;
+    });
   }
 
   const aeByPersona = {};
@@ -599,7 +604,7 @@ function renderPersonas(ae, sdr, srcPersona, personaCounts, aeObj, sdrObj) {
       <td><span class="rate ${warmCls}">${warmR}</span></td>
       <td><span class="rate ${mktCls}">${mktR}</span></td>
       <td class="oc">${topAEobj}</td>
-      <td class="oc">${topObj(sdrObj)}</td>
+      <td class="oc">${topObj(sdrByPersona[p]?.objs || {})}</td>
     </tr>`;
   }).join('');
 
