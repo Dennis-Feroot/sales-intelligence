@@ -178,6 +178,7 @@
       <a href="#" data-tab="objections">Objections</a>
       <a href="#" data-tab="personas">Personas</a>
       <a href="#" data-tab="discovery">Discovery</a>
+      <a href="#" data-tab="marketing">Marketing Calls</a>
     </div>
   </nav>
 
@@ -338,6 +339,36 @@
       </div>
     </section>
     <div class="footnote">Framework: Feroot Requirement-Led Discovery Guide Q2 FY26 · Stored in Supabase frameworks table</div>
+  </div>
+
+  <!-- ═══ TAB: MARKETING CALLS ════════════════════════════════════ -->
+  <div class="tab-page" id="tab-marketing">
+    <header class="hero">
+      <div class="label" style="margin-bottom:.9rem;">SDR Marketing-Sourced Calls — Verification</div>
+      <h1>Marketing Calls</h1>
+      <p class="hero-sub">SDR calls where the transcript contains a prior marketing touchpoint. Keyword highlighted in yellow. Grouped by type. Review context to confirm each call was truly marketing-sourced.</p>
+    </header>
+    <section class="metrics bb">
+      <div class="mc br"><span class="label">Total candidates</span><span class="mv" id="mkt-total">—</span><span class="mt" id="mkt-total-sub">—</span></div>
+      <div class="mc br"><span class="label">IAPP / conference</span><span class="mv" id="mkt-iapp">—</span><span class="mt g">Booth visits, event follow-ups</span></div>
+      <div class="mc br"><span class="label">Webinar registrants</span><span class="mv" id="mkt-webinar">—</span><span class="mt">IAPP consent audit webinar</span></div>
+      <div class="mc"><span class="label">Other signals</span><span class="mv" id="mkt-other">—</span><span class="mt">Downloads, referrals, prior email</span></div>
+    </section>
+    <style>
+      .mkt-group { margin:0 3rem; border-left:1px solid var(--border-light); border-right:1px solid var(--border-light); }
+      .mkt-group+.mkt-group { border-top:1px solid var(--border-color); }
+      .mkt-group-hd { display:flex; justify-content:space-between; align-items:center; padding:.75rem 1.25rem; background:rgba(11,11,11,.04); position:sticky; top:73px; z-index:5; }
+      .mkt-type-lbl { font-size:.82rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+      .mkt-call { padding:.9rem 1.25rem; }
+      .mkt-call.bbl:last-child { border-bottom:none; }
+      .mkt-meta { display:flex; align-items:center; gap:.75rem; margin-bottom:.45rem; flex-wrap:wrap; }
+      .mkt-persona { font-size:.82rem; font-weight:500; }
+      .mkt-ctx { font-size:.79rem; color:var(--text-muted); line-height:1.7; font-family:ui-monospace,monospace; background:rgba(11,11,11,.03); padding:.7rem 1rem; border-radius:6px; white-space:pre-wrap; }
+      mark.mkt-hit { background:#f5e642; color:#0B0B0B; border-radius:3px; padding:0 2px; font-weight:600; }
+    </style>
+    <div style="padding:1.5rem 3rem .25rem;"><div class="section-label" id="mkt-section-label">Loading…</div></div>
+    <div id="mkt-groups"></div>
+    <div class="footnote">Detected via <code>marketing_context</code> + <code>marketing_keyword</code> columns · context is ~400 chars around the matched signal · full transcript stays server-side</div>
   </div>
 
 </div>
@@ -640,6 +671,77 @@ function renderPersonas(ae, sdr, srcPersona, personaCounts, aeObj, sdrObj) {
   }).join('');
 }
 
+// ── Marketing Calls tab ───────────────────────────────────────────────────────
+async function fetchMarketingCalls() {
+  const { data } = await sb.from('calls')
+    .select('persona_bucket,call_source_type,marketing_context,marketing_keyword,outcome_booked')
+    .like('call_source_type', 'marketing_%')
+    .not('marketing_context', 'is', null)
+    .order('call_source_type');
+  return data || [];
+}
+
+function renderMarketingCalls(calls) {
+  const TYPE_LABELS = {
+    marketing_iapp: 'IAPP Event / Conference',
+    marketing_webinar: 'Webinar / Online Event',
+    marketing_event: 'Conference (non-IAPP)',
+    marketing_download: 'Resource Download',
+    marketing_referral: 'Referral',
+    marketing_prior_meeting: 'Prior Meeting',
+    marketing_prior_email: 'Prior Email',
+  };
+
+  const byType = {};
+  for (const c of calls) {
+    const t = c.call_source_type || 'other';
+    if (!byType[t]) byType[t] = [];
+    byType[t].push(c);
+  }
+
+  const iapp = (byType['marketing_iapp']||[]).length + (byType['marketing_event']||[]).length;
+  const web  = (byType['marketing_webinar']||[]).length;
+  const other = calls.length - iapp - web;
+
+  $('mkt-total').textContent = calls.length;
+  $('mkt-total-sub').textContent = `of SDR connected calls`;
+  $('mkt-iapp').textContent = iapp;
+  $('mkt-webinar').textContent = web;
+  $('mkt-other').textContent = other;
+  $('mkt-section-label').textContent = `all ${calls.length} candidates — highlighted keyword is the match trigger`;
+
+  function highlight(ctx, kw) {
+    if (!ctx || !kw) return ctx || '';
+    const safe = ctx.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    return safe.replace(new RegExp(`(${escaped})`, 'gi'), '<mark class="mkt-hit">$1</mark>');
+  }
+
+  const groupsHtml = Object.entries(byType)
+    .sort((a,b) => b[1].length - a[1].length)
+    .map(([type, group]) => {
+      const label = TYPE_LABELS[type] || type;
+      const rows = group.map(c => {
+        const bookedBadge = c.outcome_booked ? '<span class="badge go" style="font-size:.68rem;padding:.15rem .4rem;">Booked</span>' : '';
+        return `<div class="mkt-call bbl">
+          <div class="mkt-meta">
+            <span class="mkt-persona">${c.persona_bucket || 'Unknown'}</span>
+            ${bookedBadge}
+          </div>
+          <div class="mkt-ctx">${highlight(c.marketing_context, c.marketing_keyword)}</div>
+        </div>`;
+      }).join('');
+      return `<div class="mkt-group">
+        <div class="mkt-group-hd bbl">
+          <span class="mkt-type-lbl">${label}</span>
+          <span class="label">${group.length} calls</span>
+        </div>${rows}
+      </div>`;
+    }).join('');
+
+  $('mkt-groups').innerHTML = groupsHtml;
+}
+
 // ── Real-time subscription ────────────────────────────────────────────────────
 let allCalls = [];
 let prospectCount = 0;
@@ -664,14 +766,23 @@ async function init() {
 }
 
 // ── Tab navigation ────────────────────────────────────────────────────────────
+let marketingLoaded = false;
 document.querySelectorAll('.nav-links a').forEach(link => {
-  link.addEventListener('click', e => {
+  link.addEventListener('click', async e => {
     e.preventDefault();
     document.querySelectorAll('.nav-links a').forEach(l => l.classList.remove('active'));
     document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
     link.classList.add('active');
     document.getElementById('tab-' + link.dataset.tab).classList.add('active');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Lazy-load marketing calls on first visit
+    if (link.dataset.tab === 'marketing' && !marketingLoaded) {
+      marketingLoaded = true;
+      try {
+        const mktCalls = await fetchMarketingCalls();
+        renderMarketingCalls(mktCalls);
+      } catch(e) { console.error('Marketing tab error:', e); }
+    }
   });
 });
 
