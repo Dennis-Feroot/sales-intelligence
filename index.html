@@ -728,9 +728,14 @@ function renderMarketingCalls(calls) {
       const rows = group.map(c => {
         const bookedBadge = c.outcome_booked ? '<span class="badge go" style="font-size:.68rem;padding:.15rem .4rem;">Booked</span>' : '';
         const dateStr = c.call_date ? new Date(c.call_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
-        const sfLink = c.salesfinity_id
-          ? `<a class="mkt-link" href="https://web.salesfinity.co/dashboard/analytics/call-history?call=${c.salesfinity_id}" target="_blank" rel="noopener">Open in Salesfinity ↗</a>`
-          : '';
+        let sfLink = '';
+        if (c.salesfinity_id && c.call_date) {
+          const d = new Date(c.call_date);
+          const start = new Date(d.getTime() - 24*60*60*1000).toISOString();
+          const end   = new Date(d.getTime() + 24*60*60*1000).toISOString();
+          const url = `https://web.salesfinity.co/dashboard/analytics/call-history?call=${c.salesfinity_id}&start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}`;
+          sfLink = `<a class="mkt-link" href="${url}" target="_blank" rel="noopener">Open in Salesfinity ↗</a>`;
+        }
         return `<div class="mkt-call bbl">
           <div class="mkt-meta">
             <span class="mkt-persona">${c.persona_bucket || 'Unknown'}</span>
