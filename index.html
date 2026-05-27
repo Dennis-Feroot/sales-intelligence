@@ -733,7 +733,7 @@ function renderMarketingCalls(calls) {
           const d = new Date(c.call_date);
           const start = new Date(d.getTime() - 24*60*60*1000).toISOString();
           const end   = new Date(d.getTime() + 24*60*60*1000).toISOString();
-          const url = `https://web.salesfinity.co/dashboard/analytics/call-history?call=${c.salesfinity_id}&start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}`;
+          const url = `https://web.salesfinity.co/dashboard/analytics/call-history?call_id=${c.salesfinity_id}&start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}`;
           sfLink = `<a class="mkt-link" href="${url}" target="_blank" rel="noopener">Open in Salesfinity ↗</a>`;
         }
         return `<div class="mkt-call bbl">
