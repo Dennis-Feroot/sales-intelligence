@@ -289,7 +289,25 @@
       <div style="padding:2rem 3rem 0;"><div class="section-label">DEEP DIVE — PER PERSONA</div></div>
       <div class="persona-cards" id="persona-cards" style="border-top:1px solid var(--border-light);margin-top:.5rem;"></div>
     </section>
-    <div class="footnote">Persona tagged via <code>persona_bucket</code> · source tagged via <code>call_source_type</code> · booking via <code>outcome_booked</code></div>
+
+    <section class="bb" style="padding:2.5rem 3rem;">
+      <div class="section-label" style="margin-bottom:.5rem;">OBJECTION PLAYBOOK — WINNING RESPONSES</div>
+      <p class="hero-sub" style="margin:.25rem 0 1.25rem;font-size:.86rem;">Filter by persona and objection. Each card is an actual SDR response from a call that either booked a meeting or kept the prospect engaged (2+ turns after objection). Heuristic v1 — quality varies; AI ranking next.</p>
+
+      <div class="pb-controls" style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;">
+        <label class="label">Persona
+          <select id="pb-persona" class="pb-select"></select>
+        </label>
+        <label class="label">Objection
+          <select id="pb-objection" class="pb-select"></select>
+        </label>
+        <span id="pb-count" class="label" style="color:var(--text-muted);"></span>
+      </div>
+
+      <div id="pb-cards" class="pb-cards"><div style="padding:2rem;color:var(--text-muted)">Loading playbook…</div></div>
+    </section>
+
+    <div class="footnote">Persona tagged via <code>persona_bucket</code> · source tagged via <code>call_source_type</code> · booking via <code>outcome_booked</code> · responses from <code>objection_responses</code> table</div>
   </div>
 
   <!-- ═══ TAB: DISCOVERY ═══════════════════════════════════════════ -->
@@ -369,6 +387,31 @@
       .mkt-link { margin-left:auto; font-size:.72rem; color:var(--accent); text-decoration:none; border:1px solid var(--border); padding:.15rem .5rem; border-radius:4px; }
       .mkt-link:hover { background:var(--surface-2); }
       .mkt-meta { display:flex; align-items:center; gap:.5rem; }
+
+      /* Objection Playbook */
+      .pb-select { background:var(--surface); color:var(--text); border:1px solid var(--border); padding:.4rem .75rem; border-radius:6px; font-size:.85rem; margin-left:.5rem; min-width:180px; }
+      .pb-cards { display:flex; flex-direction:column; gap:.75rem; }
+      .pb-card { border:1px solid var(--border); border-radius:8px; padding:1rem 1.25rem; background:var(--surface); }
+      .pb-card .pb-head { display:flex; gap:.5rem; align-items:center; margin-bottom:.6rem; flex-wrap:wrap; font-size:.75rem; }
+      .pb-badge { background:var(--surface-2); color:var(--text-muted); padding:.15rem .5rem; border-radius:4px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+      .pb-badge.booked { background:rgba(76,175,80,.15); color:var(--green); }
+      .pb-badge.eng    { background:rgba(255,193,7,.15);  color:var(--amber); }
+      .pb-quote { font-size:.82rem; color:var(--text-muted); font-style:italic; border-left:2px solid var(--border); padding-left:.75rem; margin-bottom:.5rem; }
+      .pb-response { font-size:.95rem; color:var(--text); line-height:1.55; }
+      .pb-foot { display:flex; gap:.75rem; align-items:center; margin-top:.6rem; font-size:.72rem; color:var(--text-muted); }
+      .pb-link { color:var(--accent); text-decoration:none; border:1px solid var(--border); padding:.15rem .5rem; border-radius:4px; }
+      .pb-link:hover { background:var(--surface-2); }
+
+      /* Persona-card inline expander */
+      .pc-expand { margin-top:.75rem; width:100%; background:none; border:1px solid var(--border); color:var(--text-muted); padding:.4rem .65rem; border-radius:6px; font-size:.74rem; cursor:pointer; text-align:left; letter-spacing:.02em; text-transform:uppercase; font-weight:600; }
+      .pc-expand:hover { background:var(--surface-2); color:var(--text); }
+      .pc-expand-body { margin-top:.6rem; display:none; flex-direction:column; gap:.5rem; }
+      .pc-expand-body.open { display:flex; }
+      .pc-obj-block { border:1px solid var(--border); border-radius:6px; padding:.6rem .75rem; background:var(--surface); }
+      .pc-obj-label { font-size:.7rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--text-muted); margin-bottom:.4rem; }
+      .pc-resp { font-size:.78rem; color:var(--text); line-height:1.45; padding:.35rem 0; border-top:1px dashed var(--border-light); }
+      .pc-resp:first-of-type { border-top:none; }
+      .pc-resp .pc-resp-sub { font-size:.68rem; color:var(--text-muted); margin-top:.15rem; }
     </style>
     <div style="padding:1.5rem 3rem .25rem;"><div class="section-label" id="mkt-section-label">Loading…</div></div>
     <div id="mkt-groups"></div>
@@ -675,6 +718,141 @@ function renderPersonas(ae, sdr, srcPersona, personaCounts, aeObj, sdrObj) {
   }).join('');
 }
 
+// ── Objection Playbook (Personas tab) ─────────────────────────────────────────
+let allResponses = null;
+
+const OBJ_LABEL = {
+  not_interested: 'Not interested',
+  multi_stakeholder: 'Multi-stakeholder',
+  budget: 'Budget',
+  timing: 'Timing',
+  existing_vendor: 'Existing vendor',
+  send_email: 'Send email',
+  have_solution: 'Have a solution',
+  wrong_person: 'Wrong person',
+  scope: 'Out of scope',
+  proof: 'Proof / case study',
+  no_budget: 'No budget',
+};
+
+async function fetchObjectionResponses() {
+  if (allResponses) return allResponses;
+  const { data, error } = await sb.from('objection_responses')
+    .select('persona_bucket,objection,prospect_text,response_text,engagement_after,outcome_booked,score,salesfinity_id,gong_id,call_date,source')
+    .order('score', { ascending: false });
+  if (error) { console.error('obj_resp fetch:', error); return []; }
+  allResponses = data || [];
+  return allResponses;
+}
+
+function sfDeepLink(r) {
+  if (!r.salesfinity_id || !r.call_date) return null;
+  const d = new Date(r.call_date);
+  const start = new Date(d.getTime() - 24*60*60*1000).toISOString();
+  const end   = new Date(d.getTime() + 24*60*60*1000).toISOString();
+  return `https://web.salesfinity.co/dashboard/analytics/call-history?call_id=${r.salesfinity_id}&start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}`;
+}
+
+function renderObjectionPlaybook() {
+  const personas = [...new Set(allResponses.map(r => r.persona_bucket))].sort();
+  const objections = [...new Set(allResponses.map(r => r.objection))].sort();
+
+  const pSel = $('pb-persona');
+  const oSel = $('pb-objection');
+  pSel.innerHTML = '<option value="">All personas</option>' + personas.map(p => `<option value="${p}">${p}</option>`).join('');
+  oSel.innerHTML = '<option value="">All objections</option>' + objections.map(o => `<option value="${o}">${OBJ_LABEL[o] || o}</option>`).join('');
+
+  function paint() {
+    const fp = pSel.value, fo = oSel.value;
+    const filtered = allResponses.filter(r =>
+      (!fp || r.persona_bucket === fp) && (!fo || r.objection === fo)
+    );
+    $('pb-count').textContent = `${filtered.length} response${filtered.length === 1 ? '' : 's'}`;
+    if (!filtered.length) {
+      $('pb-cards').innerHTML = '<div style="padding:1.5rem;color:var(--text-muted)">No responses for this filter.</div>';
+      return;
+    }
+    $('pb-cards').innerHTML = filtered.slice(0, 60).map(r => {
+      const link = sfDeepLink(r);
+      const bookedBadge = r.outcome_booked ? '<span class="pb-badge booked">Booked</span>' : '';
+      const engBadge = !r.outcome_booked && r.engagement_after >= 2 ? `<span class="pb-badge eng">${r.engagement_after} more turns</span>` : '';
+      const dateStr = r.call_date ? new Date(r.call_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+      const linkHtml = link ? `<a class="pb-link" href="${link}" target="_blank" rel="noopener">Open call ↗</a>` : '';
+      return `<div class="pb-card">
+        <div class="pb-head">
+          <span class="pb-badge">${r.persona_bucket}</span>
+          <span class="pb-badge">${OBJ_LABEL[r.objection] || r.objection}</span>
+          ${bookedBadge}${engBadge}
+          <span class="pb-badge">score ${r.score}</span>
+        </div>
+        ${r.prospect_text ? `<div class="pb-quote">"${escapeHtml(r.prospect_text)}"</div>` : ''}
+        <div class="pb-response">${escapeHtml(r.response_text)}</div>
+        <div class="pb-foot">${dateStr} · ${r.source || ''}${linkHtml ? ' · ' + linkHtml : ''}</div>
+      </div>`;
+    }).join('');
+  }
+
+  pSel.addEventListener('change', paint);
+  oSel.addEventListener('change', paint);
+  paint();
+}
+
+function escapeHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Attach expand-buttons to existing persona-cards
+function attachPersonaExpanders() {
+  if (!allResponses) return;
+  document.querySelectorAll('.persona-card').forEach(card => {
+    const pName = card.querySelector('.pc-name')?.textContent?.trim();
+    if (!pName) return;
+    if (card.querySelector('.pc-expand')) return; // already attached
+
+    const own = allResponses.filter(r => r.persona_bucket === pName);
+    if (!own.length) return;
+
+    // Group by objection, keep top 2 per group
+    const byObj = {};
+    for (const r of own) { (byObj[r.objection] = byObj[r.objection] || []).push(r); }
+    const topGroups = Object.entries(byObj)
+      .map(([obj, arr]) => [obj, arr.sort((a,b)=>b.score-a.score).slice(0,2)])
+      .sort((a,b) => b[1][0].score - a[1][0].score)
+      .slice(0, 3);
+
+    const blocks = topGroups.map(([obj, arr]) => {
+      const items = arr.map(r => {
+        const link = sfDeepLink(r);
+        const tag = r.outcome_booked ? '<span class="pb-badge booked" style="font-size:.62rem;">Booked</span>' : `<span class="pb-badge eng" style="font-size:.62rem;">+${r.engagement_after}</span>`;
+        const linkA = link ? ` · <a class="pb-link" style="font-size:.65rem;padding:.05rem .35rem;" href="${link}" target="_blank" rel="noopener">↗</a>` : '';
+        return `<div class="pc-resp">${escapeHtml(r.response_text)}<div class="pc-resp-sub">${tag}${linkA}</div></div>`;
+      }).join('');
+      return `<div class="pc-obj-block"><div class="pc-obj-label">${OBJ_LABEL[obj] || obj}</div>${items}</div>`;
+    }).join('');
+
+    const btn = document.createElement('button');
+    btn.className = 'pc-expand';
+    btn.textContent = `▸ Winning responses (${own.length})`;
+    const body = document.createElement('div');
+    body.className = 'pc-expand-body';
+    body.innerHTML = blocks;
+
+    btn.addEventListener('click', () => {
+      const open = body.classList.toggle('open');
+      btn.textContent = (open ? '▾' : '▸') + ` Winning responses (${own.length})`;
+    });
+
+    card.appendChild(btn);
+    card.appendChild(body);
+  });
+}
+
+async function loadPlaybook() {
+  await fetchObjectionResponses();
+  renderObjectionPlaybook();
+  attachPersonaExpanders();
+}
+
 // ── Marketing Calls tab ───────────────────────────────────────────────────────
 async function fetchMarketingCalls() {
   const { data } = await sb.from('calls')
@@ -782,6 +960,7 @@ async function init() {
 
 // ── Tab navigation ────────────────────────────────────────────────────────────
 let marketingLoaded = false;
+let playbookLoaded = false;
 document.querySelectorAll('.nav-links a').forEach(link => {
   link.addEventListener('click', async e => {
     e.preventDefault();
@@ -797,6 +976,14 @@ document.querySelectorAll('.nav-links a').forEach(link => {
         const mktCalls = await fetchMarketingCalls();
         renderMarketingCalls(mktCalls);
       } catch(e) { console.error('Marketing tab error:', e); }
+    }
+    // Lazy-load objection playbook on Personas tab
+    if (link.dataset.tab === 'personas' && !playbookLoaded) {
+      playbookLoaded = true;
+      try { await loadPlaybook(); } catch(e) { console.error('Playbook error:', e); }
+    } else if (link.dataset.tab === 'personas' && playbookLoaded) {
+      // Re-attach expanders if personas were re-rendered while away
+      setTimeout(attachPersonaExpanders, 50);
     }
   });
 });
