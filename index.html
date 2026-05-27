@@ -365,6 +365,10 @@
       .mkt-persona { font-size:.82rem; font-weight:500; }
       .mkt-ctx { font-size:.79rem; color:var(--text-muted); line-height:1.7; font-family:ui-monospace,monospace; background:rgba(11,11,11,.03); padding:.7rem 1rem; border-radius:6px; white-space:pre-wrap; }
       mark.mkt-hit { background:#f5e642; color:#0B0B0B; border-radius:3px; padding:0 2px; font-weight:600; }
+      .mkt-date { font-size:.72rem; color:var(--text-muted); }
+      .mkt-link { margin-left:auto; font-size:.72rem; color:var(--accent); text-decoration:none; border:1px solid var(--border); padding:.15rem .5rem; border-radius:4px; }
+      .mkt-link:hover { background:var(--surface-2); }
+      .mkt-meta { display:flex; align-items:center; gap:.5rem; }
     </style>
     <div style="padding:1.5rem 3rem .25rem;"><div class="section-label" id="mkt-section-label">Loading…</div></div>
     <div id="mkt-groups"></div>
@@ -674,7 +678,7 @@ function renderPersonas(ae, sdr, srcPersona, personaCounts, aeObj, sdrObj) {
 // ── Marketing Calls tab ───────────────────────────────────────────────────────
 async function fetchMarketingCalls() {
   const { data } = await sb.from('calls')
-    .select('persona_bucket,call_source_type,marketing_context,marketing_keyword,outcome_booked')
+    .select('persona_bucket,call_source_type,marketing_context,marketing_keyword,outcome_booked,salesfinity_id,call_date')
     .like('call_source_type', 'marketing_%')
     .not('marketing_context', 'is', null)
     .order('call_source_type');
@@ -723,10 +727,16 @@ function renderMarketingCalls(calls) {
       const label = TYPE_LABELS[type] || type;
       const rows = group.map(c => {
         const bookedBadge = c.outcome_booked ? '<span class="badge go" style="font-size:.68rem;padding:.15rem .4rem;">Booked</span>' : '';
+        const dateStr = c.call_date ? new Date(c.call_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+        const sfLink = c.salesfinity_id
+          ? `<a class="mkt-link" href="https://web.salesfinity.co/dashboard/analytics/call-history?call=${c.salesfinity_id}" target="_blank" rel="noopener">Open in Salesfinity ↗</a>`
+          : '';
         return `<div class="mkt-call bbl">
           <div class="mkt-meta">
             <span class="mkt-persona">${c.persona_bucket || 'Unknown'}</span>
+            ${dateStr ? `<span class="mkt-date">${dateStr}</span>` : ''}
             ${bookedBadge}
+            ${sfLink}
           </div>
           <div class="mkt-ctx">${highlight(c.marketing_context, c.marketing_keyword)}</div>
         </div>`;
